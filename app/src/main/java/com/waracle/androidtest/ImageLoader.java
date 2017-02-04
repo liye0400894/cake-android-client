@@ -1,77 +1,51 @@
 package com.waracle.androidtest;
 
+import android.app.Activity;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.text.TextUtils;
-import android.util.Log;
-import android.widget.ImageView;
+
+import org.json.JSONException;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.security.InvalidParameterException;
+import java.util.concurrent.ExecutionException;
 
-/**
- * Created by Riad on 20/05/2015.
- */
-public class ImageLoader {
+class ImageLoader {
 
-    private static final String TAG = ImageLoader.class.getSimpleName();
+    private ImageMemoryCache imageMemoryCache;
 
-    public ImageLoader() { /**/ }
+    public ImageLoader(Activity activity) {
+        /**
+         * */
+        imageMemoryCache = new ImageMemoryCache(activity);
+    }
 
     /**
-     * Simple function for loading a bitmap image from the web
      *
-     * @param url       image url
-     * @param imageView view to set image too.
+     * @param imageUrl   image rul
+     * @return null | Bitmap
+     * @throws JSONException
      */
-    public void load(String url, ImageView imageView) {
-        if (TextUtils.isEmpty(url)) {
+    Bitmap load(String imageUrl) throws JSONException {
+        if (TextUtils.isEmpty(imageUrl)) {
             throw new InvalidParameterException("URL is empty!");
         }
 
-        // Can you think of a way to improve loading of bitmaps
-        // that have already been loaded previously??
+        Bitmap bitmap = imageMemoryCache.getBitmapFromMemCache(imageUrl);
 
         try {
-            setImageView(imageView, convertToBitmap(loadImageData(url)));
-        } catch (IOException e) {
-            Log.e(TAG, e.getMessage());
-        }
-    }
-
-    private static byte[] loadImageData(String url) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-        InputStream inputStream = null;
-        try {
-            try {
-                // Read data from workstation
-                inputStream = connection.getInputStream();
-            } catch (IOException e) {
-                // Read the error from the workstation
-                inputStream = connection.getErrorStream();
+            if (bitmap != null) {
+                return bitmap;
+            } else {
+                ImageLoaderSyncTask imageLoadingSyncTask = new ImageLoaderSyncTask(imageUrl);
+                bitmap = imageLoadingSyncTask.execute().get();
+                imageMemoryCache.addBitmapToMemoryCache(imageUrl, bitmap);
+                return bitmap;
             }
-
-            // Can you think of a way to make the entire
-            // HTTP more efficient using HTTP headers??
-
-            return StreamUtils.readUnknownFully(inputStream);
-        } finally {
-            // Close the input stream if it exists.
-            StreamUtils.close(inputStream);
-
-            // Disconnect the connection
-            connection.disconnect();
+        }catch (IOException | ExecutionException | InterruptedException e){
+            e.printStackTrace();
         }
-    }
 
-    private static Bitmap convertToBitmap(byte[] data) {
-        return BitmapFactory.decodeByteArray(data, 0, data.length);
-    }
-
-    private static void setImageView(ImageView imageView, Bitmap bitmap) {
-        imageView.setImageBitmap(bitmap);
+        return null;
     }
 }
